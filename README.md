@@ -339,6 +339,19 @@ onnx (*optional*)
 
 torchviz (*optional*)
 
+Additional Requirements for FP16
+--------------------------------
+ROCm [Apex](https://github.com/ROCmSoftwarePlatform/apex)
+
+**Steps to install Apex**: 
+
+1. Navigate to the apex folder cloned above.
+2. Execute the following step: 
+```
+python3.6 setup.py install --cuda_ext --cpp_ext 
+```
+**Note:** To use FP16, make sure to add the argument --fp16 in your scripts.
+
 License
 -------
 This source code is licensed under the MIT license found in the

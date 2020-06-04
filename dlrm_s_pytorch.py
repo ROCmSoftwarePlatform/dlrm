@@ -477,6 +477,7 @@ if __name__ == "__main__":
     parser.add_argument("--save-model", type=str, default="")
     parser.add_argument("--load-model", type=str, default="")
     parser.add_argument("--num-warmup-iters", type=int, default=10)
+    parser.add_argument("--fp16", action="store_true", default=False)
     args = parser.parse_args()
 
     ### some basic setup ###
@@ -702,6 +703,10 @@ if __name__ == "__main__":
         # specify the optimizer algorithm
         optimizer = torch.optim.SGD(dlrm.parameters(), lr=args.learning_rate)
 
+    if args.fp16:
+        from apex import amp
+        dlrm, optimizer = amp.initialize(dlrm, optimizer, opt_level="O2", keep_batchnorm_fp32=False, loss_scale="dynamic")
+
     ### main loop ###
     def time_wrap(use_gpu):
         if use_gpu:
@@ -791,8 +796,12 @@ if __name__ == "__main__":
         E = loss_fn_wrap(Z, T, use_gpu, device, dlrm.ndevices)
         #backward pass
         if not args.inference_only:
-            optimizer.zero_grad()
-            E.backward()
+            if args.fp16:
+                with amp.scale_loss(E, optimizer) as scaled_loss:
+                    scaled_loss.backward()
+            else:
+                optimizer.zero_grad()
+                E.backward()
             optimizer.step()
     print("Finished warmup iters.")
 
@@ -836,11 +845,15 @@ if __name__ == "__main__":
                 A = np.sum((np.round(S, 0) == T).astype(np.uint8)) / mbs
 
                 if not args.inference_only:
+                    if args.fp16:
+                        with amp.scale_loss(E, optimizer) as scaled_loss:
+                            scaled_loss.backward()
+                    else:
                     # scaled error gradient propagation
                     # (where we do not accumulate gradients across mini-batches)
-                    optimizer.zero_grad()
+                        optimizer.zero_grad()
                     # backward pass
-                    E.backward()
+                        E.backward()
                     # debug prints (check gradient norm)
                     # for l in mlp.layers:
                     #     if hasattr(l, 'weight'):
